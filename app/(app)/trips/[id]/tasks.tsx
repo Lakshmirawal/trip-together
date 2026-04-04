@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ScrollView, View, Text, TextInput, TouchableOpacity,
   SafeAreaView, Modal, Platform,
@@ -7,6 +7,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTripStore } from '../../../../stores/tripStore';
 import { useAuthStore } from '../../../../stores/authStore';
 import { generateTaskNudgeLink, openWhatsApp } from '../../../../lib/whatsapp';
+
+function getDueStatus(due: string | null): { label: string; color: string; bg: string } | null {
+  if (!due) return null;
+  const diff = Math.ceil((new Date(due + 'T00:00:00').getTime() - Date.now()) / 86400000);
+  if (diff < 0) return { label: 'Overdue', color: '#DC2626', bg: '#FEF2F2' };
+  if (diff === 0) return { label: 'Due today', color: '#C2410C', bg: '#FFF7ED' };
+  if (diff <= 3) return { label: `${diff}d left`, color: '#C2410C', bg: '#FFF7ED' };
+  return { label: new Date(due + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), color: '#64748B', bg: '#F4F3EF' };
+}
 
 const P = '#0D2B1F';
 const GOLD = '#E8A020';
@@ -20,8 +29,10 @@ const STATUS_COLORS = {
 export default function TasksScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { tasks, members, currentTrip, addTask, updateTask } = useTripStore();
+  const { tasks, members, currentTrip, addTask, updateTask, fetchTripDetails } = useTripStore();
   const { user } = useAuthStore();
+
+  useEffect(() => { if (id) fetchTripDetails(id); }, [id]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -89,40 +100,44 @@ export default function TasksScreen() {
             <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>
               Open ({openTasks.length})
             </Text>
-            {openTasks.map((task) => (
-              <View key={task.id} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-                  <TouchableOpacity
-                    onPress={() => updateTask(task.id, { status: 'done' })}
-                    style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#D1D5DB', marginTop: 1 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: '600', color: '#1F2937', fontSize: 14, marginBottom: 2 }}>{task.title}</Text>
-                    {task.description ? <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 4 }}>{task.description}</Text> : null}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {task.assigned_to_name && (
-                        <View style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                          <Text style={{ fontSize: 11, color: '#1D4ED8', fontWeight: '600' }}>→ {task.assigned_to_name}</Text>
-                        </View>
-                      )}
-                      {task.due_date && (
-                        <View style={{ backgroundColor: '#FFF7ED', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                          <Text style={{ fontSize: 11, color: '#C2410C', fontWeight: '600' }}>
-                            📅 {new Date(task.due_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                          </Text>
-                        </View>
-                      )}
+            {openTasks.map((task) => {
+              const due = getDueStatus(task.due_date);
+              const isOverdue = due?.label === 'Overdue';
+              return (
+                <View key={task.id} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1, borderLeftWidth: isOverdue ? 3 : 0, borderLeftColor: '#DC2626' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+                    <TouchableOpacity
+                      onPress={() => updateTask(task.id, { status: 'done' })}
+                      style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#D1D5DB', marginTop: 1 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '600', color: '#1F2937', fontSize: 14, marginBottom: 4 }}>{task.title}</Text>
+                      {task.description ? <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 6 }}>{task.description}</Text> : null}
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {task.assigned_to_name && (
+                          <View style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                            <Text style={{ fontSize: 11, color: '#1D4ED8', fontWeight: '600' }}>👤 {task.assigned_to_name}</Text>
+                          </View>
+                        )}
+                        {due && (
+                          <View style={{ backgroundColor: due.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                            <Text style={{ fontSize: 11, color: due.color, fontWeight: '700' }}>
+                              {isOverdue ? '⚠️ ' : '📅 '}{due.label}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
+                    <TouchableOpacity
+                      onPress={() => handleNudge(task.id)}
+                      style={{ backgroundColor: '#F0FDF4', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                    >
+                      <Text style={{ fontSize: 11, color: '#15803D', fontWeight: '600' }}>Nudge</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => handleNudge(task.id)}
-                    style={{ backgroundColor: '#F0FDF4', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
-                  >
-                    <Text style={{ fontSize: 11, color: '#15803D', fontWeight: '600' }}>Nudge</Text>
-                  </TouchableOpacity>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </>
         )}
 
