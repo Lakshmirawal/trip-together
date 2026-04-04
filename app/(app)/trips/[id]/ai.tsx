@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator,
@@ -41,18 +41,20 @@ function extractItineraryJSON(text: string): AIItineraryDay[] | null {
   return null;
 }
 
+function buildWelcome(tripName: string): AIMessage {
+  return {
+    role: 'assistant',
+    content: `Hi! I'm ✦ TripMate, your AI travel companion for ${tripName}.\n\nI know your group's dietary needs, budget, and interests — so I plan specifically for you.\n\nTap a quick prompt or ask me anything!`,
+  };
+}
+
 export default function AICompanionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { currentTrip, saveItineraryFromAI } = useTripStore();
+  const { currentTrip, fetchTripDetails, saveItineraryFromAI } = useTripStore();
   const scrollRef = useRef<ScrollView>(null);
 
-  const [messages, setMessages] = useState<AIMessage[]>([
-    {
-      role: 'assistant',
-      content: `Hi! I'm ✦ TripMate, your AI travel companion for ${currentTrip?.name || 'this trip'}.\n\nI know your group's dietary needs, budget, and interests — so I plan specifically for you.\n\nTap a quick prompt or ask me anything!`,
-    },
-  ]);
+  const [messages, setMessages] = useState<AIMessage[]>([buildWelcome(currentTrip?.name || 'this trip')]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [itineraryMsgIdx, setItineraryMsgIdx] = useState<number | null>(null);
@@ -60,6 +62,24 @@ export default function AICompanionScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+
+  // Fetch trip details on mount and reset conversation when trip changes
+  useEffect(() => {
+    if (!id) return;
+    fetchTripDetails(id);
+  }, [id]);
+
+  // Update welcome message once trip name is known
+  useEffect(() => {
+    if (currentTrip?.id === id && currentTrip?.name) {
+      setMessages([buildWelcome(currentTrip.name)]);
+      setInput('');
+      setError('');
+      setPendingItinerary(null);
+      setItineraryMsgIdx(null);
+      setSaved(false);
+    }
+  }, [currentTrip?.id]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || loading) return;
