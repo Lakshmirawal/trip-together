@@ -170,14 +170,39 @@ serve(async (req) => {
     }
 
     // NORMAL CHAT MODE
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
-      system: systemPrompt,
-      messages: (messages || []).map((m: any) => ({ role: m.role, content: m.content })),
-    });
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    let content = '';
 
-    const content = response.content[0].type === 'text' ? response.content[0].text : '';
+    if (!apiKey || apiKey === 'dummy') {
+      // No API key — return a helpful fallback based on trip context
+      const lastMsg = (messages || []).slice(-1)[0]?.content?.toLowerCase() || '';
+      const dest = trip.destination || 'your destination';
+      const budget = trip.budget_max ? `₹${trip.budget_max.toLocaleString('en-IN')}/person` : null;
+      const vegCount = memberList.filter((m: any) => ['Vegetarian', 'Vegan', 'Jain'].includes(m.dietary)).length;
+
+      if (lastMsg.includes('itinerary') || lastMsg.includes('draft') || lastMsg.includes('plan')) {
+        content = `To draft a full AI itinerary for ${dest}, please add your Anthropic API key:\n\n1. Go to supabase.com → your project\n2. Edge Functions → ai-companion → Secrets\n3. Add secret: ANTHROPIC_API_KEY = your-key\n4. Redeploy the function\n\nGet a free API key at console.anthropic.com`;
+      } else if (lastMsg.includes('budget')) {
+        content = `Budget summary for ${dest}:\n\n• Group size: ${trip.group_size} people\n• Per-person budget: ${budget || 'Not set'}\n• Total trip budget: ${budget ? `₹${((trip.budget_max || 0) * trip.group_size).toLocaleString('en-IN')}` : 'Not set'}\n${vegCount > 0 ? `• ${vegCount} vegetarian(s) in your group — factor in Jain/veg restaurant costs\n` : ''}• Typical breakdown: 30% stay, 25% food, 20% travel, 15% activities, 10% misc\n\nAdd your Anthropic API key at supabase.com for AI-powered detailed breakdowns.`;
+      } else if (lastMsg.includes('restaurant') || lastMsg.includes('food') || lastMsg.includes('veg')) {
+        content = `For ${dest}, some general tips:\n\n• Look for restaurants with "Pure Veg" or "Jain Food Available" signs\n• Ask locals for small dhabas — better food, better prices\n• Avoid touristy spots near main attractions (2× price, lower quality)\n${vegCount > 0 ? `• Your group has ${vegCount} vegetarian(s) — always confirm no egg/meat in sauces\n` : ''}\nAdd your Anthropic API key for AI-powered personalised recommendations!`;
+      } else {
+        content = `Hi! I'm TripMate, your AI travel companion for ${trip.name}.\n\nI currently need an Anthropic API key to give full AI responses.\n\nTo enable AI:\n1. Go to supabase.com → Edge Functions → ai-companion → Secrets\n2. Add: ANTHROPIC_API_KEY = your-key\n3. Get a free key at console.anthropic.com\n\nFor now, try the quick prompts — I'll give you the best answers I can!`;
+      }
+    } else {
+      try {
+        const response = await anthropic.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: (messages || []).map((m: any) => ({ role: m.role, content: m.content })),
+        });
+        content = response.content[0].type === 'text' ? response.content[0].text : '';
+      } catch (aiErr) {
+        console.error('Claude API error:', aiErr);
+        content = 'Sorry, I could not connect to the AI service right now. Please try again in a moment.';
+      }
+    }
 
     return new Response(JSON.stringify({ content }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

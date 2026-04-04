@@ -133,7 +133,7 @@ export default function HomeScreen() {
               <TripCard
                 key={trip.id}
                 trip={trip}
-                onPress={() => router.push(`/(app)/trips/${trip.id}/index` as any)}
+                onPress={() => router.push(`/(app)/trips/${trip.id}` as any)}
               />
             ))
           )}
