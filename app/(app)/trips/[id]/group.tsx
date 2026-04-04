@@ -95,6 +95,29 @@ export default function GroupScreen() {
     );
   }
 
+  if (!currentTrip) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#ECE5DD', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Text style={{ fontSize: 36, marginBottom: 16 }}>⚠️</Text>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 8, textAlign: 'center' }}>
+          Could not load trip
+        </Text>
+        <Text style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 }}>
+          This may be a permissions issue. Make sure you have the correct RLS policies in Supabase.
+        </Text>
+        <TouchableOpacity
+          onPress={() => fetchTripDetails(id)}
+          style={{ backgroundColor: '#075E54', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Retry</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 14 }}>
+          <Text style={{ color: '#6B7280', fontSize: 13 }}>← Go back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#ECE5DD' }}>
       {/* Header — WhatsApp style */}

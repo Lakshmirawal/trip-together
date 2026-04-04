@@ -71,22 +71,30 @@ export const useTripStore = create<TripStore>((set, get) => ({
 
   fetchTripDetails: async (tripId: string) => {
     set({ loading: true });
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out. Check your Supabase RLS policies.')), 12000)
+    );
     try {
       const [
-        { data: trip },
+        { data: trip, error: tripErr },
         { data: members },
         { data: itinerary },
         { data: tasks },
         { data: expenses },
         { data: votes },
-      ] = await Promise.all([
-        supabase.from('trips').select('*').eq('id', tripId).single(),
-        supabase.from('trip_members').select('*').eq('trip_id', tripId),
-        supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('day_number').order('order_index'),
-        supabase.from('tasks').select('*').eq('trip_id', tripId).order('created_at'),
-        supabase.from('expenses').select('*').eq('trip_id', tripId).order('created_at'),
-        supabase.from('destination_votes').select('*').eq('trip_id', tripId),
+      ] = await Promise.race([
+        Promise.all([
+          supabase.from('trips').select('*').eq('id', tripId).single(),
+          supabase.from('trip_members').select('*').eq('trip_id', tripId),
+          supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('day_number').order('order_index'),
+          supabase.from('tasks').select('*').eq('trip_id', tripId).order('created_at'),
+          supabase.from('expenses').select('*').eq('trip_id', tripId).order('created_at'),
+          supabase.from('destination_votes').select('*').eq('trip_id', tripId),
+        ]),
+        timeout,
       ]);
+
+      if (tripErr) throw new Error(tripErr.message);
 
       set({
         currentTrip: trip,
@@ -98,6 +106,7 @@ export const useTripStore = create<TripStore>((set, get) => ({
         loading: false,
       });
     } catch (err) {
+      console.error('fetchTripDetails error:', err);
       set({ loading: false });
     }
   },
