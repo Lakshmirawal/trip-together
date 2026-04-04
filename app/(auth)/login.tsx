@@ -12,7 +12,7 @@ import {
 import { supabase } from '../../lib/supabase';
 
 export default function LoginScreen() {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -89,7 +89,22 @@ export default function LoginScreen() {
     }
   };
 
-  const switchMode = (m: 'signin' | 'signup') => {
+  const handleForgotPassword = async () => {
+    setEmailError('');
+    setServerError('');
+    setSuccessMsg('');
+    if (!email.trim()) { setEmailError('Please enter your email address.'); return; }
+    if (!validateEmail(email.trim())) { setEmailError('Please enter a valid email address.'); return; }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${process.env.EXPO_PUBLIC_APP_URL}/reset-password`,
+    });
+    setLoading(false);
+    if (error) { setServerError(error.message); return; }
+    setSuccessMsg('Reset link sent! Check your email inbox.');
+  };
+
+  const switchMode = (m: 'signin' | 'signup' | 'forgot') => {
     setMode(m);
     setEmailError('');
     setPasswordError('');
@@ -116,25 +131,35 @@ export default function LoginScreen() {
             <Text className="text-muted text-sm mt-1">Plan trips, together.</Text>
           </View>
 
-          {/* Mode toggle */}
-          <View className="flex-row bg-gray-100 rounded-xl p-1 mb-6">
-            <TouchableOpacity
-              className={`flex-1 py-2.5 rounded-lg items-center ${mode === 'signin' ? 'bg-white' : ''}`}
-              onPress={() => switchMode('signin')}
-            >
-              <Text className={`text-sm font-semibold ${mode === 'signin' ? 'text-navy' : 'text-muted'}`}>
-                Sign In
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className={`flex-1 py-2.5 rounded-lg items-center ${mode === 'signup' ? 'bg-white' : ''}`}
-              onPress={() => switchMode('signup')}
-            >
-              <Text className={`text-sm font-semibold ${mode === 'signup' ? 'text-navy' : 'text-muted'}`}>
-                Sign Up
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Mode toggle — hidden in forgot mode */}
+          {mode !== 'forgot' && (
+            <View className="flex-row bg-gray-100 rounded-xl p-1 mb-6">
+              <TouchableOpacity
+                className={`flex-1 py-2.5 rounded-lg items-center ${mode === 'signin' ? 'bg-white' : ''}`}
+                onPress={() => switchMode('signin')}
+              >
+                <Text className={`text-sm font-semibold ${mode === 'signin' ? 'text-navy' : 'text-muted'}`}>
+                  Sign In
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className={`flex-1 py-2.5 rounded-lg items-center ${mode === 'signup' ? 'bg-white' : ''}`}
+                onPress={() => switchMode('signup')}
+              >
+                <Text className={`text-sm font-semibold ${mode === 'signup' ? 'text-navy' : 'text-muted'}`}>
+                  Sign Up
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Forgot password header */}
+          {mode === 'forgot' && (
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#0D2B1F', marginBottom: 4 }}>Reset password</Text>
+              <Text style={{ fontSize: 13, color: '#64748B' }}>Enter your email and we'll send a reset link.</Text>
+            </View>
+          )}
 
           {/* Success message */}
           {successMsg ? (
@@ -166,45 +191,62 @@ export default function LoginScreen() {
             {emailError ? <Text className="text-danger text-xs mt-1">{emailError}</Text> : null}
           </View>
 
-          {/* Password */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-gray-700 mb-2">Password</Text>
-            <TextInput
-              className={`border rounded-xl px-4 py-3.5 text-base text-gray-900 ${passwordError ? 'border-danger' : 'border-gray-300'}`}
-              placeholder={mode === 'signup' ? 'Min. 6 characters' : 'Your password'}
-              placeholderTextColor="#9CA3AF"
-              value={password}
-              onChangeText={(t) => { setPassword(t); setPasswordError(''); setServerError(''); }}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-            {passwordError ? <Text className="text-danger text-xs mt-1">{passwordError}</Text> : null}
-          </View>
+          {/* Password — hidden in forgot mode */}
+          {mode !== 'forgot' && (
+            <View className="mb-2">
+              <Text className="text-sm font-semibold text-gray-700 mb-2">Password</Text>
+              <TextInput
+                className={`border rounded-xl px-4 py-3.5 text-base text-gray-900 ${passwordError ? 'border-danger' : 'border-gray-300'}`}
+                placeholder={mode === 'signup' ? 'Min. 6 characters' : 'Your password'}
+                placeholderTextColor="#9CA3AF"
+                value={password}
+                onChangeText={(t) => { setPassword(t); setPasswordError(''); setServerError(''); }}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              {passwordError ? <Text className="text-danger text-xs mt-1">{passwordError}</Text> : null}
+            </View>
+          )}
+
+          {/* Forgot password link — only in signin mode */}
+          {mode === 'signin' && (
+            <TouchableOpacity onPress={() => switchMode('forgot')} style={{ alignSelf: 'flex-end', marginBottom: 20, marginTop: 6 }}>
+              <Text style={{ fontSize: 12, color: '#0D2B1F', fontWeight: '600' }}>Forgot password?</Text>
+            </TouchableOpacity>
+          )}
+
+          {mode !== 'signin' && mode !== 'signup' ? null : <View style={{ marginBottom: mode === 'signup' ? 24 : 0 }} />}
 
           {/* Submit */}
           <TouchableOpacity
-            className={`rounded-xl py-4 items-center ${loading ? 'bg-gray-400' : 'bg-navy'}`}
-            onPress={handleSubmit}
+            style={{ borderRadius: 12, paddingVertical: 16, alignItems: 'center', backgroundColor: loading ? '#9CA3AF' : '#0D2B1F', marginBottom: 16 }}
+            onPress={mode === 'forgot' ? handleForgotPassword : handleSubmit}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text className="text-white font-semibold text-base">
-                {mode === 'signin' ? 'Sign In →' : 'Create Account →'}
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
+                {mode === 'signin' ? 'Sign In →' : mode === 'signup' ? 'Create Account →' : 'Send Reset Link →'}
               </Text>
             )}
           </TouchableOpacity>
 
-          <Text className="text-center text-muted text-xs mt-4">
-            {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-            <Text
-              className="text-navy font-semibold"
-              onPress={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
-            >
-              {mode === 'signin' ? 'Sign up free' : 'Sign in'}
+          {mode === 'forgot' ? (
+            <TouchableOpacity onPress={() => switchMode('signin')} style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 13, color: '#64748B' }}>← Back to Sign In</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text className="text-center text-muted text-xs mt-0">
+              {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+              <Text
+                className="text-navy font-semibold"
+                onPress={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
+              >
+                {mode === 'signin' ? 'Sign up free' : 'Sign in'}
+              </Text>
             </Text>
-          </Text>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
