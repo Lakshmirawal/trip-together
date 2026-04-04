@@ -31,6 +31,10 @@ export default function RootLayout() {
 
     const inAuthGroup = segments[0] === '(auth)';
     const inJoinGroup = segments[0] === 'join';
+    const inResetPassword = segments[0] === '(auth)' && segments[1] === 'reset-password';
+
+    // Never redirect away from the reset-password screen — it needs the recovery session
+    if (inResetPassword) return;
 
     if (!session && !inAuthGroup && !inJoinGroup) {
       router.replace('/(auth)/login');

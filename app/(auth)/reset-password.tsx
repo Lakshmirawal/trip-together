@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
@@ -11,6 +11,7 @@ const GOLD = '#E8A020';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
+  const [ready, setReady] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [passwordError, setPasswordError] = useState('');
@@ -18,6 +19,22 @@ export default function ResetPasswordScreen() {
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    // Check if a recovery session already exists (layout may have set it)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setReady(true);
+    });
+
+    // Also listen — PASSWORD_RECOVERY fires when the email link is clicked
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && session) {
+        setReady(true);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleReset = async () => {
     setPasswordError(''); setConfirmError(''); setServerError('');
@@ -33,9 +50,13 @@ export default function ResetPasswordScreen() {
     setLoading(false);
 
     if (error) { setServerError(error.message); return; }
+
+    // Sign out so user logs in fresh with new password
+    await supabase.auth.signOut();
     setDone(true);
   };
 
+  // Success screen
   if (done) {
     return (
       <View style={{ flex: 1, backgroundColor: '#F4F3EF', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
@@ -44,7 +65,7 @@ export default function ResetPasswordScreen() {
         </View>
         <Text style={{ fontSize: 22, fontWeight: '800', color: P, marginBottom: 10, textAlign: 'center' }}>Password updated!</Text>
         <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginBottom: 32 }}>
-          Your password has been reset successfully. Sign in with your new password.
+          Sign in with your new password.
         </Text>
         <TouchableOpacity
           style={{ backgroundColor: P, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 40 }}
@@ -56,12 +77,28 @@ export default function ResetPasswordScreen() {
     );
   }
 
+  // Waiting for recovery session
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#F4F3EF', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: P, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+          <Text style={{ color: GOLD, fontSize: 28 }}>✦</Text>
+        </View>
+        <ActivityIndicator color={P} size="large" style={{ marginBottom: 16 }} />
+        <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center' }}>Verifying reset link…</Text>
+        <TouchableOpacity onPress={() => router.replace('/(auth)/login')} style={{ marginTop: 32 }}>
+          <Text style={{ fontSize: 13, color: '#64748B' }}>← Back to Sign In</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Reset form
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: '#fff' }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
         <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
 
-          {/* Logo */}
           <View style={{ alignItems: 'center', marginBottom: 36 }}>
             <View style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: P, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
               <Text style={{ color: GOLD, fontSize: 28 }}>✦</Text>
@@ -70,14 +107,12 @@ export default function ResetPasswordScreen() {
             <Text style={{ fontSize: 13, color: '#64748B', textAlign: 'center' }}>Choose a strong password for your account.</Text>
           </View>
 
-          {/* Server error */}
           {serverError ? (
             <View style={{ backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 16 }}>
               <Text style={{ color: '#DC2626', fontSize: 13, textAlign: 'center' }}>{serverError}</Text>
             </View>
           ) : null}
 
-          {/* New password */}
           <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6 }}>
             New password <Text style={{ color: '#DC2626' }}>*</Text>
           </Text>
@@ -92,7 +127,6 @@ export default function ResetPasswordScreen() {
           />
           {passwordError ? <Text style={{ color: '#DC2626', fontSize: 11, marginBottom: 12 }}>{passwordError}</Text> : <View style={{ marginBottom: 16 }} />}
 
-          {/* Confirm password */}
           <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6 }}>
             Confirm password <Text style={{ color: '#DC2626' }}>*</Text>
           </Text>
@@ -107,7 +141,6 @@ export default function ResetPasswordScreen() {
           />
           {confirmError ? <Text style={{ color: '#DC2626', fontSize: 11, marginBottom: 12 }}>{confirmError}</Text> : <View style={{ marginBottom: 24 }} />}
 
-          {/* Submit */}
           <TouchableOpacity
             style={{ backgroundColor: loading ? '#9CA3AF' : GOLD, borderRadius: 14, paddingVertical: 16, alignItems: 'center', shadowColor: GOLD, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 }}
             onPress={handleReset}
