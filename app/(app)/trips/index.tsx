@@ -45,7 +45,7 @@ export default function MyTripsScreen() {
                 </Text>
                 {active.map((trip) => (
                   <TripCard key={trip.id} trip={trip}
-                    onPress={() => router.push(`/(app)/trips/${trip.id}/index` as any)} />
+                    onPress={() => router.push(`/(app)/trips/${trip.id}` as any)} />
                 ))}
               </>
             )}
@@ -57,7 +57,7 @@ export default function MyTripsScreen() {
                 </Text>
                 {past.map((trip) => (
                   <TripCard key={trip.id} trip={trip}
-                    onPress={() => router.push(`/(app)/trips/${trip.id}/index` as any)} />
+                    onPress={() => router.push(`/(app)/trips/${trip.id}` as any)} />
                 ))}
               </>
             )}
