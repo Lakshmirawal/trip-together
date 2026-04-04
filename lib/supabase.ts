@@ -99,6 +99,7 @@ export type Expense = {
   title: string;
   amount: number;
   category: 'accommodation' | 'food' | 'transport' | 'activities' | 'other';
+  paid_by_name: string | null;
   added_by: string | null;
   created_at: string;
 };

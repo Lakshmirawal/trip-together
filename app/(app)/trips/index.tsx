@@ -48,6 +48,7 @@ export default function MyTripsScreen() {
                     onPress={() => router.push(`/(app)/trips/${trip.id}` as any)}
                     quickActions={[
                       { label: '✦ Ask AI', primary: true, onPress: () => router.push(`/(app)/trips/${trip.id}/ai` as any) },
+                      { label: 'Budget', onPress: () => router.push(`/(app)/trips/${trip.id}/budget` as any) },
                       { label: 'Itinerary', onPress: () => router.push(`/(app)/trips/${trip.id}/itinerary` as any) },
                       { label: 'Group', onPress: () => router.push(`/(app)/trips/${trip.id}/group` as any) },
                     ]}
