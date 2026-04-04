@@ -71,31 +71,35 @@ export const useTripStore = create<TripStore>((set, get) => ({
 
   fetchTripDetails: async (tripId: string) => {
     set({ loading: true });
-    const [
-      { data: trip },
-      { data: members },
-      { data: itinerary },
-      { data: tasks },
-      { data: expenses },
-      { data: votes },
-    ] = await Promise.all([
-      supabase.from('trips').select('*').eq('id', tripId).single(),
-      supabase.from('trip_members').select('*').eq('trip_id', tripId),
-      supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('day_number').order('order_index'),
-      supabase.from('tasks').select('*').eq('trip_id', tripId).order('created_at'),
-      supabase.from('expenses').select('*').eq('trip_id', tripId).order('created_at'),
-      supabase.from('destination_votes').select('*').eq('trip_id', tripId),
-    ]);
+    try {
+      const [
+        { data: trip },
+        { data: members },
+        { data: itinerary },
+        { data: tasks },
+        { data: expenses },
+        { data: votes },
+      ] = await Promise.all([
+        supabase.from('trips').select('*').eq('id', tripId).single(),
+        supabase.from('trip_members').select('*').eq('trip_id', tripId),
+        supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('day_number').order('order_index'),
+        supabase.from('tasks').select('*').eq('trip_id', tripId).order('created_at'),
+        supabase.from('expenses').select('*').eq('trip_id', tripId).order('created_at'),
+        supabase.from('destination_votes').select('*').eq('trip_id', tripId),
+      ]);
 
-    set({
-      currentTrip: trip,
-      members: members ?? [],
-      itinerary: itinerary ?? [],
-      tasks: tasks ?? [],
-      expenses: expenses ?? [],
-      destinationVotes: votes ?? [],
-      loading: false,
-    });
+      set({
+        currentTrip: trip,
+        members: members ?? [],
+        itinerary: itinerary ?? [],
+        tasks: tasks ?? [],
+        expenses: expenses ?? [],
+        destinationVotes: votes ?? [],
+        loading: false,
+      });
+    } catch (err) {
+      set({ loading: false });
+    }
   },
 
   addExpense: async (expense) => {

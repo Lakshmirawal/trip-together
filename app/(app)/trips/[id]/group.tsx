@@ -86,6 +86,15 @@ export default function GroupScreen() {
     return new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime();
   });
 
+  if (loading && !currentTrip) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#ECE5DD', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#075E54" />
+        <Text style={{ color: '#6B7280', marginTop: 12, fontSize: 13 }}>Loading group...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#ECE5DD' }}>
       {/* Header — WhatsApp style */}

@@ -1,6 +1,6 @@
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
-const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://trip-together.vercel.app';
+const APP_URL = process.env.EXPO_PUBLIC_APP_URL || 'https://triptogether-rho.vercel.app';
 
 export function generateInviteLink(inviteToken: string): string {
   return `${APP_URL}/join/${inviteToken}`;
@@ -23,10 +23,9 @@ export function generateTaskNudgeLink(tripName: string, taskTitle: string, tripI
 }
 
 export async function openWhatsApp(url: string): Promise<void> {
-  const canOpen = await Linking.canOpenURL(url);
-  if (canOpen) {
-    await Linking.openURL(url);
-  } else {
-    await Linking.openURL(url);
+  if (Platform.OS === 'web') {
+    window.open(url, '_blank');
+    return;
   }
+  await Linking.openURL(url);
 }
