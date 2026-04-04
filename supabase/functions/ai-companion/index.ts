@@ -1,0 +1,191 @@
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.24.3';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') || 'dummy' });
+
+function buildSystemPrompt(trip: any, members: any[]): string {
+  const memberSummary = members.map((m: any) =>
+    `- ${m.name}: dietary=${m.dietary}, budget=${m.budget_comfort}, interests=[${(m.interests || []).join(', ')}]`
+  ).join('\n');
+
+  return `You are TripMate, an expert group travel planner for Indian travellers.
+
+TRIP DETAILS:
+- Name: ${trip.name}
+- Destination: ${trip.destination || 'Not decided yet'}
+- Dates: ${trip.dates_start || 'TBD'} to ${trip.dates_end || 'TBD'}
+- Group size: ${trip.group_size} people
+- Budget: Rs.${trip.budget_min || 0} to Rs.${trip.budget_max || 0} per person total
+
+GROUP MEMBERS (${members.length} joined):
+${memberSummary || 'No members have joined yet.'}
+
+YOUR EXPERTISE:
+1. Always consider ALL dietary restrictions in every food recommendation
+2. Always provide TIMING INTEL — best time of day, crowd patterns, seasonal notes
+3. Always provide TRANSPORT INTEL — distance, mode, cost, time from previous location
+4. Calculate running per-person cost against budget
+5. Flag accessibility concerns proactively
+6. Provide LOCAL CONTEXT that generic apps miss
+
+Keep responses concise and actionable. Use Rs. for Indian Rupee amounts.`;
+}
+
+function getSmartSuggestions(members: any[], trip: any): any[] {
+  const allInterests: string[] = members.flatMap((m: any) => m.interests || []);
+  const interestCounts: Record<string, number> = {};
+  for (const interest of allInterests) {
+    interestCounts[interest] = (interestCounts[interest] || 0) + 1;
+  }
+
+  const budgets: string[] = members.map((m: any) => m.budget_comfort || '');
+  const isLowBudget = budgets.some((b: string) => b.includes('2,000') || b.includes('4,000'));
+  const isHighBudget = budgets.some((b: string) => b.includes('15,000'));
+  const hasVegan = members.some((m: any) => m.dietary === 'Vegan' || m.dietary === 'Jain');
+
+  const pool = [
+    { name: 'Goa', emoji: '🏖️', tags: ['beach', 'city'], budget: 'mid', vegan: true, reason: 'Sun, sand and vibrant nightlife — perfect beach escape' },
+    { name: 'Manali', emoji: '🏔️', tags: ['adventure', 'nature'], budget: 'low', vegan: false, reason: 'Snow-capped peaks and thrilling adventures in the Himalayas' },
+    { name: 'Coorg', emoji: '🌿', tags: ['nature', 'culture'], budget: 'mid', vegan: true, reason: 'Misty coffee estates and lush greenery for nature lovers' },
+    { name: 'Pondicherry', emoji: '🏛️', tags: ['culture', 'beach', 'city'], budget: 'low', vegan: true, reason: 'French-colonial charm with serene beaches and great food' },
+    { name: 'Rajasthan', emoji: '🏰', tags: ['culture', 'spiritual', 'city'], budget: 'mid', vegan: true, reason: 'Royal forts, vibrant culture and rich heritage' },
+    { name: 'Spiti Valley', emoji: '🗻', tags: ['adventure', 'nature', 'spiritual'], budget: 'mid', vegan: false, reason: 'Remote Himalayan valley for the bold explorer' },
+    { name: 'Kerala Backwaters', emoji: '🛶', tags: ['nature', 'culture', 'beach'], budget: 'mid', vegan: true, reason: 'Tranquil backwaters, spice trails and Ayurvedic retreats' },
+    { name: 'Varanasi', emoji: '🛕', tags: ['spiritual', 'culture'], budget: 'low', vegan: true, reason: 'Sacred ghats and ancient temples on the banks of the Ganga' },
+    { name: 'Andaman Islands', emoji: '🐠', tags: ['beach', 'adventure', 'nature'], budget: 'high', vegan: false, reason: 'Crystal-clear waters and pristine beaches, untouched paradise' },
+    { name: 'Hampi', emoji: '🗿', tags: ['culture', 'adventure', 'spiritual'], budget: 'low', vegan: true, reason: 'Ancient ruins and boulder landscapes unlike anywhere else' },
+    { name: 'Munnar', emoji: '🍵', tags: ['nature', 'culture'], budget: 'low', vegan: true, reason: 'Rolling tea gardens and cool hill air perfect for relaxation' },
+    { name: 'Ladakh', emoji: '🏜️', tags: ['adventure', 'spiritual', 'nature'], budget: 'high', vegan: false, reason: 'High-altitude desert with monasteries and dramatic landscapes' },
+    { name: 'Mumbai', emoji: '🌆', tags: ['city', 'culture'], budget: 'mid', vegan: true, reason: 'India most cosmopolitan city — food, art and energy' },
+    { name: 'Mysuru', emoji: '👑', tags: ['culture', 'spiritual', 'city'], budget: 'low', vegan: true, reason: 'Majestic palaces and silk bazaars, the city of royals' },
+    { name: 'Rishikesh', emoji: '🧘', tags: ['spiritual', 'adventure', 'nature'], budget: 'low', vegan: true, reason: 'Yoga capital with river rafting and Himalayan vibes' },
+  ];
+
+  const scored = pool.map((dest) => {
+    let score = 0;
+    for (const tag of dest.tags) {
+      if (interestCounts[tag]) score += interestCounts[tag] * 2;
+    }
+    if (isLowBudget && dest.budget === 'low') score += 3;
+    if (isHighBudget && dest.budget === 'high') score += 2;
+    if (hasVegan && dest.vegan) score += 2;
+    return { ...dest, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const picked: typeof pool = [];
+  const usedTags = new Set<string>();
+  for (const dest of scored) {
+    if (picked.length >= 3) break;
+    const primaryTag = dest.tags[0];
+    if (!usedTags.has(primaryTag) || picked.length === 2) {
+      picked.push(dest);
+      usedTags.add(primaryTag);
+    }
+  }
+  for (const dest of scored) {
+    if (picked.length >= 3) break;
+    if (!picked.find((p) => p.name === dest.name)) picked.push(dest);
+  }
+
+  return picked.slice(0, 3).map(({ name, emoji, reason }) => ({ name, emoji, reason }));
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  try {
+    const body = await req.json();
+    const { tripId, messages, mode } = body;
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    const { data: trip, error: tripError } = await supabaseClient
+      .from('trips').select('*').eq('id', tripId).single();
+
+    if (tripError || !trip) {
+      return new Response(JSON.stringify({ error: 'Trip not found' }), {
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: members } = await supabaseClient
+      .from('trip_members').select('*').eq('trip_id', tripId);
+
+    const memberList = members || [];
+    const systemPrompt = buildSystemPrompt(trip, memberList);
+
+    // DESTINATION SUGGESTIONS MODE
+    if (mode === 'destinations') {
+      let finalSuggestions = getSmartSuggestions(memberList, trip);
+
+      const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+      if (apiKey && apiKey !== 'dummy') {
+        try {
+          const memberPrefs = memberList.map((m: any) =>
+            m.name + ': ' + m.dietary + ', budget ' + m.budget_comfort + ', interests: ' + (m.interests || []).join(', ')
+          ).join('\n');
+
+          const prompt = 'Based on these group preferences, suggest exactly 3 Indian travel destinations.\n\nGroup:\n' +
+            memberPrefs +
+            '\n\nBudget: Rs.' + (trip.budget_min || 0) + ' to Rs.' + (trip.budget_max || 0) + ' per person' +
+            '\n\nReturn ONLY this JSON with no markdown or extra text:\n' +
+            '{"suggestions":[{"name":"Name","emoji":"emoji","reason":"One-liner why perfect for this group"},{"name":"Name2","emoji":"emoji","reason":"One-liner"},{"name":"Name3","emoji":"emoji","reason":"One-liner"}]}';
+
+          const response = await anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 500,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: prompt }],
+          });
+
+          const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '{}';
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.suggestions && parsed.suggestions.length > 0) {
+              finalSuggestions = parsed.suggestions;
+            }
+          }
+        } catch (aiErr) {
+          console.error('AI call failed, using smart fallback:', aiErr);
+        }
+      }
+
+      await supabaseClient.from('trips').update({ ai_suggestions: finalSuggestions }).eq('id', tripId);
+
+      return new Response(JSON.stringify({ suggestions: finalSuggestions }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // NORMAL CHAT MODE
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: (messages || []).map((m: any) => ({ role: m.role, content: m.content })),
+    });
+
+    const content = response.content[0].type === 'text' ? response.content[0].text : '';
+
+    return new Response(JSON.stringify({ content }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error: any) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
