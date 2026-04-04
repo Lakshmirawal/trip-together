@@ -1,7 +1,8 @@
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Trip } from '../lib/supabase';
 
-type Props = { trip: Trip; onPress?: () => void };
+type QuickAction = { label: string; onPress: () => void; primary?: boolean };
+type Props = { trip: Trip; onPress?: () => void; quickActions?: QuickAction[] };
 
 const P = '#0D2B1F';
 const GOLD = '#E8A020';
@@ -22,49 +23,73 @@ const STATUS: Record<Trip['status'], { bg: string; text: string; label: string }
   completed: { bg: '#F9FAFB', text: '#6B7280', label: 'Done' },
 };
 
-export default function TripCard({ trip, onPress }: Props) {
+export default function TripCard({ trip, onPress, quickActions }: Props) {
   const { label: daysLabel, urgent } = getDaysUntil(trip.dates_start);
   const status = STATUS[trip.status] || STATUS.planning;
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={{ backgroundColor: '#fff', borderRadius: 18, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-        <View style={{ flex: 1, marginRight: 10 }}>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: '#1F2937', marginBottom: 2 }} numberOfLines={1}>
-            {trip.name}
-          </Text>
-          {trip.destination ? (
-            <Text style={{ fontSize: 12, color: '#64748B' }}>📍 {trip.destination}</Text>
-          ) : (
-            <Text style={{ fontSize: 12, color: `${P}60`, fontStyle: 'italic' }}>✦ Destination TBD</Text>
-          )}
-        </View>
-        <View style={{ backgroundColor: status.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: status.text }}>{status.label}</Text>
-        </View>
-      </View>
-
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ flexDirection: 'row', gap: 14 }}>
-          {trip.dates_start && (
-            <Text style={{ fontSize: 12, color: '#64748B' }}>
-              📅 {new Date(trip.dates_start + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+    <View style={{ backgroundColor: '#fff', borderRadius: 18, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, overflow: 'hidden' }}>
+      {/* Main card content — tappable */}
+      <TouchableOpacity onPress={onPress} style={{ padding: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: '#1F2937', marginBottom: 2 }} numberOfLines={1}>
+              {trip.name}
             </Text>
-          )}
-          <Text style={{ fontSize: 12, color: '#64748B' }}>👥 {trip.group_size}</Text>
-          {trip.budget_max ? (
-            <Text style={{ fontSize: 12, color: '#64748B' }}>💰 ₹{trip.budget_max.toLocaleString('en-IN')}/person</Text>
+            {trip.destination ? (
+              <Text style={{ fontSize: 12, color: '#64748B' }}>📍 {trip.destination}</Text>
+            ) : (
+              <Text style={{ fontSize: 12, color: `${P}60`, fontStyle: 'italic' }}>✦ Destination TBD</Text>
+            )}
+          </View>
+          <View style={{ backgroundColor: status.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: status.text }}>{status.label}</Text>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', gap: 14 }}>
+            {trip.dates_start && (
+              <Text style={{ fontSize: 12, color: '#64748B' }}>
+                📅 {new Date(trip.dates_start + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+              </Text>
+            )}
+            <Text style={{ fontSize: 12, color: '#64748B' }}>👥 {trip.group_size}</Text>
+            {trip.budget_max ? (
+              <Text style={{ fontSize: 12, color: '#64748B' }}>💰 ₹{trip.budget_max.toLocaleString('en-IN')}/person</Text>
+            ) : null}
+          </View>
+          {daysLabel ? (
+            <View style={{ backgroundColor: urgent ? `${GOLD}20` : '#F4F3EF', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: urgent ? '#C2410C' : '#64748B' }}>{daysLabel}</Text>
+            </View>
           ) : null}
         </View>
-        {daysLabel ? (
-          <View style={{ backgroundColor: urgent ? `${GOLD}20` : '#F4F3EF', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: urgent ? '#C2410C' : '#64748B' }}>{daysLabel}</Text>
-          </View>
-        ) : null}
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+
+      {/* Quick action strip */}
+      {quickActions && quickActions.length > 0 && (
+        <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#F4F3EF' }}>
+          {quickActions.map((action, i) => (
+            <TouchableOpacity
+              key={action.label}
+              onPress={action.onPress}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                alignItems: 'center',
+                borderLeftWidth: i > 0 ? 1 : 0,
+                borderLeftColor: '#F4F3EF',
+                backgroundColor: action.primary ? `${GOLD}18` : '#FAFAFA',
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: action.primary ? '#92400E' : '#64748B' }}>
+                {action.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
   );
 }

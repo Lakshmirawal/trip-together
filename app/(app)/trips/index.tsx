@@ -45,7 +45,13 @@ export default function MyTripsScreen() {
                 </Text>
                 {active.map((trip) => (
                   <TripCard key={trip.id} trip={trip}
-                    onPress={() => router.push(`/(app)/trips/${trip.id}` as any)} />
+                    onPress={() => router.push(`/(app)/trips/${trip.id}` as any)}
+                    quickActions={[
+                      { label: '✦ Ask AI', primary: true, onPress: () => router.push(`/(app)/trips/${trip.id}/ai` as any) },
+                      { label: 'Itinerary', onPress: () => router.push(`/(app)/trips/${trip.id}/itinerary` as any) },
+                      { label: 'Group', onPress: () => router.push(`/(app)/trips/${trip.id}/group` as any) },
+                    ]}
+                  />
                 ))}
               </>
             )}

@@ -215,13 +215,29 @@ export default function GroupScreen() {
             </View>
           ))}
 
-          {/* Pending slots */}
+          {/* Pending slots + nudge */}
           {pendingCount > 0 && (
-            <View style={{ alignItems: 'center', marginVertical: 8 }}>
-              <View style={{ backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
-                <Text style={{ color: '#fff', fontSize: 11 }}>
-                  ⏳ Waiting for {pendingCount} more member{pendingCount > 1 ? 's' : ''}...
-                </Text>
+            <View style={{ marginVertical: 8 }}>
+              <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                <View style={{ backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
+                  <Text style={{ color: '#fff', fontSize: 11 }}>
+                    ⏳ Waiting for {pendingCount} more member{pendingCount > 1 ? 's' : ''}...
+                  </Text>
+                </View>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <View style={{ backgroundColor: '#DCF8C6', borderRadius: 12, borderTopRightRadius: 0, padding: 12, maxWidth: '85%' }}>
+                  <Text style={{ fontSize: 11, color: '#075E54', fontWeight: '700', marginBottom: 6 }}>Nudge pending members</Text>
+                  <Text style={{ fontSize: 12, color: '#1F2937', lineHeight: 18, marginBottom: 10 }}>
+                    {pendingCount} member{pendingCount > 1 ? 's haven\'t' : ' hasn\'t'} joined yet. Send them a reminder!
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => openWhatsApp(generateWhatsAppDeeplink(currentTrip?.name || 'our trip', currentTrip?.invite_token || ''))}
+                    style={{ backgroundColor: '#25D366', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Send WhatsApp nudge →</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}

@@ -72,7 +72,7 @@ export const useTripStore = create<TripStore>((set, get) => ({
   fetchTripDetails: async (tripId: string) => {
     set({ loading: true });
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out. Check your Supabase RLS policies.')), 12000)
+      setTimeout(() => reject(new Error('Request timed out. Check your Supabase RLS policies.')), 8000)
     );
     try {
       const [
