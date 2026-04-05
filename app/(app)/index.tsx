@@ -76,7 +76,8 @@ export default function HomeScreen() {
                 } else if (feat.id === 'coordinator') {
                   router.push(trip ? `/(app)/trips/${trip.id}/group` as any : '/(app)/trips/index' as any);
                 } else {
-                  router.push(trip ? `/(app)/trips/${trip.id}/ai` as any : '/(app)/trips/create' as any);
+                  // AI Trip Planner always goes to create a new trip
+                  router.push('/(app)/trips/create' as any);
                 }
               }}
             >
