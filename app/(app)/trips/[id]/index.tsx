@@ -37,6 +37,7 @@ export default function TripOverviewScreen() {
     const channel = supabase.channel(`trip-overview-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_members', filter: `trip_id=eq.${id}` }, () => fetchTripDetails(id))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `trip_id=eq.${id}` }, () => fetchTripDetails(id))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'itinerary_items', filter: `trip_id=eq.${id}` }, () => fetchTripDetails(id))
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [id]);

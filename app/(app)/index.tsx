@@ -6,9 +6,9 @@ import { useTripStore } from '../../stores/tripStore';
 import TripCard from '../../components/TripCard';
 
 const HIGHLIGHTED_FEATURES = [
-  { id: 'ai', icon: '✦', title: 'AI Trip Planner', desc: 'Draft itineraries from group preferences', route: '/(app)/trips/create' as const },
-  { id: 'coordinator', icon: '👥', title: 'Group Co-ordinator', desc: 'Passive onboarding, tasks & shared plans', route: '/(app)/trips/index' as const },
-  { id: 'budget', icon: '💰', title: 'Smart Budget', desc: 'Pre-declared budget, live spend tracking', route: '/(app)/trips/index' as const },
+  { id: 'ai',          icon: '✦',  title: 'AI Trip Planner',    desc: 'Draft itineraries from group preferences' },
+  { id: 'coordinator', icon: '👥', title: 'Group Co-ordinator', desc: 'Passive onboarding, tasks & shared plans' },
+  { id: 'budget',      icon: '💰', title: 'Smart Budget',       desc: 'Pre-declared budget, live spend tracking' },
 ];
 
 const STANDARD_FEATURES = [
@@ -69,7 +69,16 @@ export default function HomeScreen() {
             <TouchableOpacity
               key={feat.id}
               style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}
-              onPress={() => router.push(feat.route as any)}
+              onPress={() => {
+                const trip = activeTrips[0];
+                if (feat.id === 'budget') {
+                  router.push(trip ? `/(app)/trips/${trip.id}/budget` as any : '/(app)/trips/index' as any);
+                } else if (feat.id === 'coordinator') {
+                  router.push(trip ? `/(app)/trips/${trip.id}/group` as any : '/(app)/trips/index' as any);
+                } else {
+                  router.push(trip ? `/(app)/trips/${trip.id}/ai` as any : '/(app)/trips/create' as any);
+                }
+              }}
             >
               <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#E8A020', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                 <Text style={{ fontSize: 16 }}>{feat.icon}</Text>
