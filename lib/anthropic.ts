@@ -14,7 +14,15 @@ export async function callAICompanion(
     body: { tripId, messages },
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Try to extract a readable message from the response body
+    const detail = (error as any)?.context?.json?.content
+      || (error as any)?.context?.json?.error
+      || error.message;
+    throw new Error(typeof detail === 'string' ? detail : 'Edge function error. Please redeploy ai-companion.');
+  }
+
+  if (!data?.content) throw new Error('Empty response from AI. Please try again.');
   return data.content as string;
 }
 
