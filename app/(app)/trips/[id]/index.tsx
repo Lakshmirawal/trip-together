@@ -128,20 +128,27 @@ export default function TripOverviewScreen() {
           </View>
           <Text style={{ color: '#fff', fontSize: 13, lineHeight: 20, marginBottom: 12 }}>{aiMessage}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              onPress={() => router.push(`/(app)/trips/${id}/ai` as any)}
-              style={{ flex: 1, backgroundColor: GOLD, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
-            >
-              <Text style={{ color: P, fontWeight: '800', fontSize: 13 }}>
-                {itinerary.length > 0 ? 'Review draft →' : '✦ Ask AI'}
-              </Text>
-            </TouchableOpacity>
-            {itinerary.length > 0 && (
+            {itinerary.length > 0 ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => router.push(`/(app)/trips/${id}/itinerary` as any)}
+                  style={{ flex: 1, backgroundColor: GOLD, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                >
+                  <Text style={{ color: P, fontWeight: '800', fontSize: 13 }}>Review draft →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push(`/(app)/trips/${id}/ai` as any)}
+                  style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Edit</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
               <TouchableOpacity
-                onPress={() => router.push(`/(app)/trips/${id}/itinerary` as any)}
-                style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                onPress={() => router.push(`/(app)/trips/${id}/ai` as any)}
+                style={{ flex: 1, backgroundColor: GOLD, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
               >
-                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>View itinerary</Text>
+                <Text style={{ color: P, fontWeight: '800', fontSize: 13 }}>✦ Ask AI</Text>
               </TouchableOpacity>
             )}
           </View>

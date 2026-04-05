@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, SafeAreaView } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTripStore } from '../../../../stores/tripStore';
 import { useAuthStore } from '../../../../stores/authStore';
 import { supabase, ItineraryItem } from '../../../../lib/supabase';
+import { generateItineraryShareLink, openWhatsApp } from '../../../../lib/whatsapp';
 
 const P = '#0D2B1F';
 const GOLD = '#E8A020';
@@ -77,21 +78,39 @@ export default function ItineraryScreen() {
             <Text style={{ color: '#fff', fontSize: 16 }}>←</Text>
           </TouchableOpacity>
           <View>
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{currentTrip?.name}</Text>
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Itinerary Draft</Text>
             <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>{dayNumbers.length} days · {itinerary.length} activities</Text>
           </View>
         </View>
         {isOrganiser && (
           <TouchableOpacity
-            style={{ backgroundColor: GOLD, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 }}
-            onPress={() => router.push(`/(app)/trips/${id}/ai` as any)}
+            style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 }}
+            onPress={() => openWhatsApp(generateItineraryShareLink(currentTrip?.name || 'our trip', id))}
           >
-            <Text style={{ color: P, fontSize: 11, fontWeight: '800' }}>✦ Regenerate</Text>
+            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>Share →</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+      {/* Bottom action bar */}
+      {isOrganiser && (
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E8E6E0', padding: 16, flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity
+            onPress={() => router.push(`/(app)/trips/${id}/ai` as any)}
+            style={{ flex: 1, backgroundColor: '#F4F3EF', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1, borderColor: '#E8E6E0' }}
+          >
+            <Text style={{ color: P, fontWeight: '700', fontSize: 13 }}>✦ Edit in AI</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => openWhatsApp(generateItineraryShareLink(currentTrip?.name || 'our trip', id))}
+            style={{ flex: 2, backgroundColor: P, borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Share to group →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
         {dayNumbers.map((dayNum) => {
           const items = days[dayNum];
           const firstItem = items[0];

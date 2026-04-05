@@ -14,6 +14,14 @@ export function generateWhatsAppDeeplink(tripName: string, inviteToken: string):
   return `https://wa.me/?text=${message}`;
 }
 
+export function generateItineraryShareLink(tripName: string, tripId: string): string {
+  const link = `${APP_URL}/trips/${tripId}/itinerary`;
+  const message = encodeURIComponent(
+    `Here's our *${tripName}* itinerary 🗓️\n\nView the full day-by-day plan here:\n${link}`
+  );
+  return `https://wa.me/?text=${message}`;
+}
+
 export function generateTaskNudgeLink(tripName: string, taskTitle: string, tripId: string): string {
   const link = `${APP_URL}/trips/${tripId}`;
   const message = encodeURIComponent(
