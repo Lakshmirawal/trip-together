@@ -13,6 +13,53 @@ function ok(data: unknown) {
   });
 }
 
+// ── Groq (free) via OpenAI-compatible REST API ──────────────────────────────
+async function callGroq(apiKey: string, system: string, messages: any[], maxTokens = 2000): Promise<string> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: maxTokens,
+      messages: [{ role: 'system', content: system }, ...messages],
+    }),
+  });
+  if (!res.ok) throw new Error(`Groq API error: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+// ── Anthropic Claude via REST API ────────────────────────────────────────────
+async function callAnthropic(apiKey: string, system: string, messages: any[], maxTokens = 2000): Promise<string> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens,
+      system,
+      messages,
+    }),
+  });
+  if (!res.ok) throw new Error(`Anthropic API error: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return data.content?.[0]?.text || '';
+}
+
+// ── Pick whichever AI key is available ───────────────────────────────────────
+async function callAI(system: string, messages: any[], maxTokens = 2000): Promise<string | null> {
+  const groqKey = Deno.env.get('GROQ_API_KEY');
+  const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+
+  if (groqKey) return callGroq(groqKey, system, messages, maxTokens);
+  if (anthropicKey && anthropicKey !== 'dummy') return callAnthropic(anthropicKey, system, messages, maxTokens);
+  return null; // no key configured
+}
+
 function buildSystemPrompt(trip: any, members: any[]): string {
   const memberSummary = members.map((m: any) =>
     `- ${m.name}: dietary=${m.dietary}, budget=${m.budget_comfort}, interests=[${(m.interests || []).join(', ')}]`
@@ -47,10 +94,9 @@ function getSmartSuggestions(members: any[], trip: any): any[] {
   for (const interest of allInterests) {
     interestCounts[interest] = (interestCounts[interest] || 0) + 1;
   }
-
   const budgets: string[] = members.map((m: any) => m.budget_comfort || '');
-  const isLowBudget = budgets.some((b: string) => b.includes('2,000') || b.includes('4,000'));
-  const isHighBudget = budgets.some((b: string) => b.includes('15,000'));
+  const isLowBudget = budgets.some((b) => b.includes('2,000') || b.includes('4,000'));
+  const isHighBudget = budgets.some((b) => b.includes('15,000'));
   const hasVegan = members.some((m: any) => m.dietary === 'Vegan' || m.dietary === 'Jain');
 
   const pool = [
@@ -59,15 +105,12 @@ function getSmartSuggestions(members: any[], trip: any): any[] {
     { name: 'Coorg', emoji: '🌿', tags: ['nature', 'culture'], budget: 'mid', vegan: true, reason: 'Misty coffee estates and lush greenery for nature lovers' },
     { name: 'Pondicherry', emoji: '🏛️', tags: ['culture', 'beach', 'city'], budget: 'low', vegan: true, reason: 'French-colonial charm with serene beaches and great food' },
     { name: 'Rajasthan', emoji: '🏰', tags: ['culture', 'spiritual', 'city'], budget: 'mid', vegan: true, reason: 'Royal forts, vibrant culture and rich heritage' },
-    { name: 'Spiti Valley', emoji: '🗻', tags: ['adventure', 'nature', 'spiritual'], budget: 'mid', vegan: false, reason: 'Remote Himalayan valley for the bold explorer' },
     { name: 'Kerala Backwaters', emoji: '🛶', tags: ['nature', 'culture', 'beach'], budget: 'mid', vegan: true, reason: 'Tranquil backwaters, spice trails and Ayurvedic retreats' },
     { name: 'Varanasi', emoji: '🛕', tags: ['spiritual', 'culture'], budget: 'low', vegan: true, reason: 'Sacred ghats and ancient temples on the banks of the Ganga' },
     { name: 'Andaman Islands', emoji: '🐠', tags: ['beach', 'adventure', 'nature'], budget: 'high', vegan: false, reason: 'Crystal-clear waters and pristine beaches, untouched paradise' },
     { name: 'Hampi', emoji: '🗿', tags: ['culture', 'adventure', 'spiritual'], budget: 'low', vegan: true, reason: 'Ancient ruins and boulder landscapes unlike anywhere else' },
     { name: 'Munnar', emoji: '🍵', tags: ['nature', 'culture'], budget: 'low', vegan: true, reason: 'Rolling tea gardens and cool hill air perfect for relaxation' },
     { name: 'Ladakh', emoji: '🏜️', tags: ['adventure', 'spiritual', 'nature'], budget: 'high', vegan: false, reason: 'High-altitude desert with monasteries and dramatic landscapes' },
-    { name: 'Mumbai', emoji: '🌆', tags: ['city', 'culture'], budget: 'mid', vegan: true, reason: 'India\'s most cosmopolitan city — food, art and energy' },
-    { name: 'Mysuru', emoji: '👑', tags: ['culture', 'spiritual', 'city'], budget: 'low', vegan: true, reason: 'Majestic palaces and silk bazaars, the city of royals' },
     { name: 'Rishikesh', emoji: '🧘', tags: ['spiritual', 'adventure', 'nature'], budget: 'low', vegan: true, reason: 'Yoga capital with river rafting and Himalayan vibes' },
   ];
 
@@ -81,24 +124,21 @@ function getSmartSuggestions(members: any[], trip: any): any[] {
     if (hasVegan && dest.vegan) score += 2;
     return { ...dest, score };
   });
-
   scored.sort((a, b) => b.score - a.score);
 
   const picked: typeof pool = [];
   const usedTags = new Set<string>();
   for (const dest of scored) {
     if (picked.length >= 3) break;
-    const primaryTag = dest.tags[0];
-    if (!usedTags.has(primaryTag) || picked.length === 2) {
+    if (!usedTags.has(dest.tags[0]) || picked.length === 2) {
       picked.push(dest);
-      usedTags.add(primaryTag);
+      usedTags.add(dest.tags[0]);
     }
   }
   for (const dest of scored) {
     if (picked.length >= 3) break;
     if (!picked.find((p) => p.name === dest.name)) picked.push(dest);
   }
-
   return picked.slice(0, 3).map(({ name, emoji, reason }) => ({ name, emoji, reason }));
 }
 
@@ -113,10 +153,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    if (!supabaseUrl || !serviceKey) {
-      return ok({ content: 'Supabase environment variables not configured in edge function.' });
-    }
+    if (!supabaseUrl || !serviceKey) return ok({ content: 'Supabase environment not configured.' });
 
     const supabaseClient = createClient(supabaseUrl, serviceKey);
 
@@ -124,7 +161,7 @@ serve(async (req) => {
       .from('trips').select('*').eq('id', tripId).single();
 
     if (tripError || !trip) {
-      return ok({ content: `Could not load trip data (${tripError?.message || 'not found'}). Please try again.` });
+      return ok({ content: `Could not load trip data. Please try again. (${tripError?.message || 'not found'})` });
     }
 
     const { data: members } = await supabaseClient
@@ -133,93 +170,65 @@ serve(async (req) => {
     const memberList = members || [];
     const systemPrompt = buildSystemPrompt(trip, memberList);
 
-    // DESTINATION SUGGESTIONS MODE
+    // ── DESTINATION SUGGESTIONS MODE ─────────────────────────────────────────
     if (mode === 'destinations') {
       let finalSuggestions = getSmartSuggestions(memberList, trip);
-
-      const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-      if (apiKey && apiKey !== 'dummy') {
-        try {
-          const { default: Anthropic } = await import('https://esm.sh/@anthropic-ai/sdk@0.24.3');
-          const anthropic = new Anthropic({ apiKey });
-          const memberPrefs = memberList.map((m: any) =>
-            m.name + ': ' + m.dietary + ', budget ' + m.budget_comfort + ', interests: ' + (m.interests || []).join(', ')
-          ).join('\n');
-
-          const prompt = 'Based on these group preferences, suggest exactly 3 Indian travel destinations.\n\nGroup:\n' +
-            memberPrefs +
-            '\n\nBudget: Rs.' + (trip.budget_min || 0) + ' to Rs.' + (trip.budget_max || 0) + ' per person' +
-            '\n\nReturn ONLY this JSON with no markdown or extra text:\n' +
-            '{"suggestions":[{"name":"Name","emoji":"emoji","reason":"One-liner why perfect for this group"},{"name":"Name2","emoji":"emoji","reason":"One-liner"},{"name":"Name3","emoji":"emoji","reason":"One-liner"}]}';
-
-          const response = await anthropic.messages.create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 500,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: prompt }],
-          });
-
-          const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '{}';
+      try {
+        const memberPrefs = memberList.map((m: any) =>
+          `${m.name}: ${m.dietary}, budget ${m.budget_comfort}, interests: ${(m.interests || []).join(', ')}`
+        ).join('\n');
+        const prompt = `Based on these group preferences, suggest exactly 3 Indian travel destinations.\n\nGroup:\n${memberPrefs}\n\nBudget: Rs.${trip.budget_min || 0} to Rs.${trip.budget_max || 0} per person\n\nReturn ONLY this JSON:\n{"suggestions":[{"name":"Name","emoji":"emoji","reason":"One-liner"},{"name":"Name2","emoji":"emoji","reason":"One-liner"},{"name":"Name3","emoji":"emoji","reason":"One-liner"}]}`;
+        const raw = await callAI(systemPrompt, [{ role: 'user', content: prompt }], 500);
+        if (raw) {
           const jsonMatch = raw.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.suggestions && parsed.suggestions.length > 0) {
-              finalSuggestions = parsed.suggestions;
-            }
+            if (parsed.suggestions?.length > 0) finalSuggestions = parsed.suggestions;
           }
-        } catch (aiErr) {
-          console.error('AI call failed, using smart fallback:', aiErr);
         }
+      } catch (err) {
+        console.error('AI suggestions failed, using fallback:', err);
       }
-
       await supabaseClient.from('trips').update({ ai_suggestions: finalSuggestions }).eq('id', tripId);
       return ok({ suggestions: finalSuggestions });
     }
 
-    // NORMAL CHAT MODE
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    // ── NORMAL CHAT MODE ─────────────────────────────────────────────────────
     let content = '';
-
-    if (!apiKey || apiKey === 'dummy') {
-      const lastMsg = (messages || []).slice(-1)[0]?.content?.toLowerCase() || '';
-      const dest = trip.destination || 'your destination';
-      const budget = trip.budget_max ? `₹${trip.budget_max.toLocaleString('en-IN')}/person` : null;
-      const vegCount = memberList.filter((m: any) => ['Vegetarian', 'Vegan', 'Jain'].includes(m.dietary)).length;
-
-      if (lastMsg.includes('itinerary') || lastMsg.includes('draft') || lastMsg.includes('plan')) {
-        content = `To draft a full AI itinerary for ${dest}, please add your Anthropic API key:\n\n1. Go to supabase.com → your project\n2. Edge Functions → ai-companion → Secrets\n3. Add secret: ANTHROPIC_API_KEY = your-key\n4. Redeploy the function\n\nGet a free API key at console.anthropic.com`;
-      } else if (lastMsg.includes('budget')) {
-        content = `Budget summary for ${dest}:\n\n• Group size: ${trip.group_size} people\n• Per-person budget: ${budget || 'Not set'}\n• Total trip budget: ${budget ? `₹${((trip.budget_max || 0) * trip.group_size).toLocaleString('en-IN')}` : 'Not set'}\n${vegCount > 0 ? `• ${vegCount} vegetarian(s) — factor in Jain/veg restaurant costs\n` : ''}• Typical breakdown: 30% stay, 25% food, 20% travel, 15% activities, 10% misc`;
-      } else if (lastMsg.includes('restaurant') || lastMsg.includes('food') || lastMsg.includes('veg')) {
-        content = `For ${dest}:\n\n• Look for "Pure Veg" or "Jain Food Available" signs\n• Ask locals for small dhabas — better food, better prices\n• Avoid touristy spots near main attractions (2× price)\n${vegCount > 0 ? `• Your group has ${vegCount} vegetarian(s) — always confirm no egg/meat in sauces\n` : ''}\nAdd your Anthropic API key for AI-powered personalised recommendations!`;
+    try {
+      const aiReply = await callAI(
+        systemPrompt,
+        (messages || []).map((m: any) => ({ role: m.role, content: m.content })),
+        2000
+      );
+      if (aiReply) {
+        content = aiReply;
       } else {
-        content = `Hi! I'm TripMate, your AI travel companion for ${trip.name}.\n\nI need an Anthropic API key to give full AI responses.\n\nTo enable AI:\n1. Go to supabase.com → Edge Functions → ai-companion → Secrets\n2. Add: ANTHROPIC_API_KEY = your-key\n3. Get a free key at console.anthropic.com\n\nFor now, try asking about budget, food, or itinerary!`;
+        // No API key — smart rule-based fallback
+        const lastMsg = (messages || []).slice(-1)[0]?.content?.toLowerCase() || '';
+        const dest = trip.destination || 'your destination';
+        const budget = trip.budget_max ? `₹${trip.budget_max.toLocaleString('en-IN')}/person` : null;
+        const vegCount = memberList.filter((m: any) => ['Vegetarian', 'Vegan', 'Jain'].includes(m.dietary)).length;
+
+        if (lastMsg.includes('itinerary') || lastMsg.includes('draft') || lastMsg.includes('plan')) {
+          content = `To draft a full AI itinerary for ${dest}, add a free API key:\n\n• Groq (free): console.groq.com → API Keys\n  Add GROQ_API_KEY secret in Supabase Edge Functions\n\n• Anthropic: console.anthropic.com\n  Add ANTHROPIC_API_KEY secret\n\nThen redeploy the ai-companion function.`;
+        } else if (lastMsg.includes('budget')) {
+          content = `Budget summary for ${dest}:\n\n• Group size: ${trip.group_size} people\n• Per-person: ${budget || 'Not set'}\n• Total: ${budget ? `₹${((trip.budget_max || 0) * trip.group_size).toLocaleString('en-IN')}` : 'Not set'}\n${vegCount > 0 ? `• ${vegCount} vegetarian(s) in group\n` : ''}• Typical split: 30% stay · 25% food · 20% transport · 15% activities · 10% misc`;
+        } else if (lastMsg.includes('restaurant') || lastMsg.includes('food') || lastMsg.includes('eat')) {
+          content = `Food tips for ${dest}:\n\n• Look for "Pure Veg" signs near temples and markets\n• Small dhabas = better food at half the price\n• Avoid restaurants right next to tourist spots\n${vegCount > 0 ? `• Group has ${vegCount} vegetarian(s) — always ask about egg in sauces\n` : ''}\nAdd a free Groq key (console.groq.com) for personalised AI recommendations!`;
+        } else {
+          content = `Hi! I'm TripMate for ${trip.name}.\n\nI'm running in basic mode. To unlock full AI:\n\n1. Go to console.groq.com (free, no card needed)\n2. Create an API key\n3. Add it as GROQ_API_KEY in Supabase → Edge Functions → ai-companion → Secrets\n4. Redeploy the function\n\nFor now, try asking about budget or food!`;
+        }
       }
-    } else {
-      try {
-        const { default: Anthropic } = await import('https://esm.sh/@anthropic-ai/sdk@0.24.3');
-        const anthropic = new Anthropic({ apiKey });
-        const response = await anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 2000,
-          system: systemPrompt,
-          messages: (messages || []).map((m: any) => ({ role: m.role, content: m.content })),
-        });
-        content = response.content[0].type === 'text' ? response.content[0].text : '';
-      } catch (aiErr: any) {
-        console.error('Claude API error:', aiErr);
-        content = `I couldn't connect to the AI service right now (${aiErr?.message || 'unknown error'}). Please check your ANTHROPIC_API_KEY secret and try again.`;
-      }
+    } catch (aiErr: any) {
+      console.error('AI call error:', aiErr);
+      content = `I couldn't reach the AI service right now (${aiErr?.message || 'unknown error'}). Please try again in a moment.`;
     }
 
     return ok({ content });
 
   } catch (error: any) {
     console.error('Edge function error:', error);
-    // Always return 200 with an error message — never a non-2xx
-    return new Response(
-      JSON.stringify({ content: `Something went wrong: ${error.message}. Please try again.` }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return ok({ content: `Something went wrong: ${error.message}. Please try again.` });
   }
 });
